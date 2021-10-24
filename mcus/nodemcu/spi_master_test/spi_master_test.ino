@@ -4,7 +4,8 @@ enum class EMasterPacketTypes : uint8_t
 {
   None = 0,
   ReadAllSensors,
-  TestEntry
+  TurnLedON,
+  TurnLedOFF
 };
 
 enum class EClientPacketTypes : uint8_t
@@ -46,23 +47,8 @@ typedef struct __attribute__((packed)) SPacketAllSensors
   }
 };
 
-template <typename T> size_t sendSPI(const T& data)
-{
-  SPI.transfer((uint8_t*)&data, sizeof(data));
-  return sizeof(data);
-}
-
-template <typename T> size_t readSPI(T& data)
-{
-  uint8_t* pData = (uint8_t*)&data;
-  size_t count = 0;
-
-  for(count = 0; count < sizeof(data); count++)
-  {
-    *pData++ = SPI.transfer('.');
-  }
-  return count;
-}
+volatile SPacketAllSensors clientDataPacket;
+// volatile uint8_t* dataPacketIndex;
 
 char buff[]="Uzenet a Nodetol\n";
 char kuldes_tesztje[20];
@@ -79,51 +65,56 @@ void setup()
 
 void loop() 
 {
+  
+   //TEST READ ALL SENSOR DATA
    SPI.beginTransaction(spi_settings);
-   //elkuldi az uzenetet
-   EMasterPacketTypes readRequest = EMasterPacketTypes::ReadAllSensors;
-   SPI.transfer((uint8_t)readRequest);
-   
-//   for(int i=0; i<sizeof(buff); i++)
-//   {  
-//      kuldes_tesztje[i] = SPI.transfer(buff[i]);
-//      delay(1);
-//   }
-   SPacketAllSensors sensorData;
-   Serial.println("[NODE] Receiving sensor packet");
-//   readSPI(sensorData);
-   //kuld meg 100 pontot,ezeket az Arduino felulirja
-   //ami visszajon azt kiolvassuk betesszuk a returnbuffbe
-//   for(int i=0; i<100; i++)
-//   {  
-//      returnbuff[i] = SPI.transfer('.');
-//      delay(1);
-//   }
+   //send master packet to slave
+   EMasterPacketTypes slaveRequest = EMasterPacketTypes::ReadAllSensors;
+   SPI.transfer((uint8_t)slaveRequest);
+   delay(1);
+
+   uint8_t* dataPacketIndex = (uint8_t*)&clientDataPacket;
+   for( int i=0; i<sizeof(clientDataPacket);  i++)
+   {
+     *dataPacketIndex = SPI.transfer('.');
+     dataPacketIndex++;
+     delay(1);
+   }
     
    SPI.endTransaction();
 
-   //itt kiirjuk. Az SPI sokkal gyorsabb volt mint a soros port
-   //ezert ott kozben nem probaljuk meg kiirni, a soros kiiratas lassu
-//   for(int i=0; i<20; i++)  
-//      Serial.print(kuldes_tesztje[i]);
-//
-//   for(int i=0; i<100; i++)  
-//      Serial.print(returnbuff[i]);
-  if(sensorData.error == 0)
+  if(clientDataPacket.error == 0)
   {
     Serial.println("[NODE] Received sensor data");
     Serial.print("[NODE] Gas1 : ");
-    Serial.println(sensorData.gas1);
+    Serial.println(clientDataPacket.gas1);
     Serial.print("[NODE] Gas2 : ");
-    Serial.println(sensorData.gas2);
+    Serial.println(clientDataPacket.gas2);
     Serial.print("[NODE] Light: ");
-    Serial.println(sensorData.lightSensor);
+    Serial.println(clientDataPacket.lightSensor);
   }
   else
   {
     Serial.print("[NODE] Sensor error ");
-    Serial.println(sensorData.error);
+    Serial.println(clientDataPacket.error);
   }
    Serial.println();
+   Serial.println();
+   delay(1000); 
+
+   //TEST LED OFF 
+   SPI.beginTransaction(spi_settings);
+   slaveRequest = EMasterPacketTypes::TurnLedOFF;
+   SPI.transfer((uint8_t)slaveRequest);
+   delay(1);
+   SPI.endTransaction();
+   delay(1000);
+
+   //TEST LED ON
+   SPI.beginTransaction(spi_settings);
+   slaveRequest = EMasterPacketTypes::TurnLedON;
+   SPI.transfer((uint8_t)slaveRequest);
+   delay(1);
+   SPI.endTransaction();
    delay(1000);  
 }

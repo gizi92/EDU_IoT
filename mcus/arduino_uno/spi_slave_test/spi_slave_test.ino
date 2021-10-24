@@ -74,15 +74,10 @@ OutputPeripherals PurpleLED(3);
 enum class EMasterPacketTypes : uint8_t
 {
   None = 0,
-  ReadAllSensors
+  ReadAllSensors,
+  TurnLedON,
+  TurnLedOFF
 };
-
-EMasterPacketTypes lastReceivedMasterPacket;
-
-void handleMasterPacket(uint8_t requestType)
-{
-  lastReceivedMasterPacket = (EMasterPacketTypes)requestType;
-}
 
 enum class EClientPacketTypes : uint8_t
 {
@@ -113,41 +108,19 @@ typedef struct __attribute__((packed)) SPacketAllSensors
   }
 };
 
-template <typename T> size_t sendSPI(const T& data)
-{ 
-  uint8_t* pData = (uint8_t*)&data;
-  size_t count = 0;
-  for(count = 0; count < sizeof(data); count++)
-  {
-    SPDR = *pData++;
-  }
-  return sizeof(data);
-}
-
-template <typename T> size_t readSPI(T& data)
-{
-  uint8_t* pData = (uint8_t*)&data;
-  uint8_t* pStart = pData;
-  
-  size_t count = 0;
-  for(count = 0; count < sizeof(data); count++)
-  {
-    *pData++ = SPDR;
-  }
-
-  return count;
-}
-
-SPISettings spi_settings(100000, MSBFIRST, SPI_MODE0);
-
-char bejovo_uzenet[100];
-char kimeno_uzenet[100]="Felelet az arduinotol\n";
-
 volatile byte index_received;
 volatile byte index_sent;
 volatile bool spi_receive;
 volatile bool spi_send;
 volatile bool spi_end_transmission;
+
+volatile SPacketAllSensors clientDataPacket;
+volatile uint8_t* dataPacketIndex;
+
+volatile EMasterPacketTypes masterPacketType;
+
+
+SPISettings spi_settings(100000, MSBFIRST, SPI_MODE0);
 
 void setup (void)
 {
@@ -155,19 +128,30 @@ void setup (void)
   SPCR |= bit(SPE);         //bekapcsolja az SPIt
   //SPI.begin();
   pinMode(MISO, OUTPUT);    //MISOn valaszol
-  
-  SPI.attachInterrupt();   //ha jon az SPIn  valami beugrik a fuggvenybe
 
-  //DEBUG
-  // Serial.println("sizeof(SPacketAllSensors):");
-  // Serial.print(sizeof(SPacketAllSensors));
+  index_received = 0;
+  index_sent = 0;
+  spi_receive = true;
+  spi_send = false;
+  spi_end_transmission = false;
+
+  dataPacketIndex = (uint8_t*)&clientDataPacket;
+  SPI.attachInterrupt();   //ha jon az SPIn  valami beugrik a fuggvenybe
 }
 
 void loop ()
 {
   MQ135.Read();
   PhotoResistor.Read();
-  
+  if (spi_end_transmission)
+  {
+    spi_end_transmission = false;
+    spi_receive = true;
+    spi_send = false;
+
+    dataPacketIndex = (uint8_t*)&clientDataPacket;
+    index_sent = 0;
+  }
   delay(500);
 }
 
@@ -175,50 +159,63 @@ void loop ()
 ISR(SPI_STC_vect)
 {
   //receive and handle master request
-  uint8_t requestType = (uint8_t)SPDR;
-  Serial.print("[UNO] Received packet : ");
-  Serial.print(requestType);
-  Serial.println();
-  //handleMasterPacket(requestType);
+  uint8_t receivedByte = (uint8_t)SPDR;
   
-  //Handle master request
-  SPacketAllSensors sensorData;
-  switch (requestType)
+  if(spi_receive)
   {
-  case 1:
+    masterPacketType = (EMasterPacketTypes)receivedByte;
+    //Prepare clientDataPackage for sending to master
+    switch (masterPacketType)
     {
-      Serial.println("[UNO] Received master request ReadAllSensors");
-
-      sensorData.error = 0;
-      sensorData.gas1 = MQ135.GetLastReadValue();
-      sensorData.gas2 = 0;
-      sensorData.lightSensor = PhotoResistor.GetLastReadValue();
-      sendSPI(sensorData);
-      break;
+    case EMasterPacketTypes::ReadAllSensors:
+      {
+        Serial.println("[UNO] Received master packet ReadAllSensors");
+        Serial.println();
+        clientDataPacket.error = 0;
+        clientDataPacket.gas1 = MQ135.GetLastReadValue();
+        clientDataPacket.gas2 = 0;
+        clientDataPacket.lightSensor = PhotoResistor.GetLastReadValue();
+        break;
+      }
+    case EMasterPacketTypes::TurnLedON:
+      {
+        Serial.println("[UNO] Received master packet TurnLedON");
+        Serial.println();
+        PurpleLED.TurnON();
+        break;
+      }
+    case EMasterPacketTypes::TurnLedOFF:
+      {
+        Serial.println("[UNO] Received master packet TurnLedOFF");
+        Serial.println();
+        PurpleLED.TurnOFF();
+        break;
+      }
+    default:
+      {
+        Serial.print("[UNO] Unknown master packet with type ");
+        Serial.println();
+        Serial.println((uint8_t)masterPacketType);
+        clientDataPacket.error = -1;
+        break;
+      }
     }
-  case 2:
-     {       
-       Serial.println("[UNO] Received master request TurnLedON");
+    spi_receive = false;
+    spi_send = true;
+  }
 
-       PurpleLED.TurnON();
-       break;  
-     }
-  case 3:
+  if(spi_send)
+  {
+    if(masterPacketType == EMasterPacketTypes::ReadAllSensors)
     {
-       Serial.println("[UNO] Received master request TurnLedOFF");
-
-       PurpleLED.TurnOFF();
-       break;  
+      SPDR = *dataPacketIndex++;
+      index_sent++;
+      if(index_sent > sizeof(clientDataPacket))
+        spi_end_transmission = true;
     }
-  
-  default:
+    else
     {
-      Serial.print("[UNO] Unknown master request with type ");
-      Serial.println((uint8_t)requestType);
-
-      sensorData.error = 1;
-      
-      break;
+      spi_end_transmission = true;
     }
   }
 }

@@ -2,8 +2,8 @@
 
 char buff[]="Uzenet a Nodetol\n";
 char kuldes_tesztje[20];
-char returnbuff[100];
-
+uint8_t returnbuff[100];
+uint8_t* test1;
 SPISettings spi_settings(100000, MSBFIRST, SPI_MODE0); 
 //100 kHz legyen a sebesseg, a Node tud 80MHzt de az Arduino csak 16MHzt
 
@@ -28,7 +28,7 @@ void loop()
    //ami visszajon azt kiolvassuk betesszuk a returnbuffbe
    for(int i=0; i<100; i++)
    {  
-      returnbuff[i] = SPI.transfer('.');
+      *test1 = SPI.transfer('.');
       delay(1);
    }
     

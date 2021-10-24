@@ -59,23 +59,23 @@ ISR(SPI_STC_vect)
   char c = SPDR;
   
   if (fogadunk)
-    {
+  {
     bejovo_uzenet[index_bejovo] = c;
     index_bejovo++;
-    } 
+  } 
 
   if (kuldunk)
-    {
+  {
     if (index_kimeno<22) SPDR = kimeno_uzenet[index_kimeno];
     if (index_kimeno==99) vege = true;
     index_kimeno++;
-    } 
+  } 
 
   if (c == '\n')
-    {     
+  {     
      fogadunk = false;
      kuldunk = true;
      index_kimeno = 0;
      digitalWrite(3,1);
-    }
+  }
 }
