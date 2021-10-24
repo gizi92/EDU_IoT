@@ -29,7 +29,7 @@ class AnalogSensor
 };
 
 AnalogSensor MQ135(0);
-
+AnalogSensor PhotoResistor(1);
 enum class EMasterPacketTypes : uint8_t
 {
   None = 0,
@@ -57,6 +57,8 @@ typedef struct __attribute__((packed)) SPacketAllSensors
   uint8_t error;
   uint16_t gas1;
   uint16_t gas2;
+  uint32_t temperature;
+  uint32_t humidity;
   uint16_t lightSensor;
 
   SPacketAllSensors()
@@ -98,6 +100,7 @@ void setup() {
 void loop() {
   // put your main code here, to run repeatedly:
   MQ135.Read();
+  PhotoResistor.Read();
   delay(500);
 }
 
@@ -136,7 +139,9 @@ void onRequestEvent()
       sensorData.error = 0;
       sensorData.gas1 = MQ135.GetLastReadValue();
       sensorData.gas2 = 0;
-      sensorData.lightSensor = 0;
+      sensorData.temperature = 0;
+      sensorData.humidity = 0;
+      sensorData.lightSensor = PhotoResistor.GetLastReadValue();
       break;
     }
     default:

@@ -39,6 +39,8 @@ typedef struct __attribute__((packed)) SPacketAllSensors
   uint8_t error;
   uint16_t gas1;
   uint16_t gas2;
+  uint32_t temperature;
+  uint32_t humidity;
   uint16_t lightSensor;
 
   SPacketAllSensors()
@@ -96,7 +98,11 @@ void loop() {
     Serial.println(sensorData.gas1);
     Serial.print("[NODE] Gas2 : ");
     Serial.println(sensorData.gas2);
-    Serial.print("[NODE] Light : ");
+    Serial.print("[NODE] Temperature: ");
+    Serial.println(sensorData.temperature);
+    Serial.print("[NODE] Humidity: ");
+    Serial.println(sensorData.humidity);
+    Serial.print("[NODE] Light: ");
     Serial.println(sensorData.lightSensor);
   }
   else
