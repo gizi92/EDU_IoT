@@ -30,6 +30,47 @@ class AnalogSensor
 AnalogSensor MQ135(0);
 AnalogSensor PhotoResistor(1);
 
+class OutputPeripherals
+{
+  public:
+    OutputPeripherals(const int pin)
+    {
+      m_pin = pin;
+      pinMode(m_pin,OUTPUT);
+      TurnOFF();
+    }
+
+    const int GetPin() const
+    {
+      return m_pin;
+    }
+
+    void TurnON()
+    {
+      digitalWrite(m_pin, HIGH);
+      m_value = 1;
+      
+    }
+
+    void TurnOFF()
+    {
+      digitalWrite(m_pin, LOW);
+      m_value = 0;
+      
+    }
+    
+    const int GetStatus() const
+    {
+      return m_value;
+    }
+
+  private:
+    volatile int m_value;
+    int m_pin;
+};
+
+OutputPeripherals PurpleLED(3);
+
 enum class EMasterPacketTypes : uint8_t
 {
   None = 0,
@@ -126,6 +167,7 @@ void loop ()
 {
   MQ135.Read();
   PhotoResistor.Read();
+  
   delay(500);
 }
 
@@ -153,6 +195,20 @@ ISR(SPI_STC_vect)
       sensorData.lightSensor = PhotoResistor.GetLastReadValue();
       sendSPI(sensorData);
       break;
+    }
+  case 2:
+     {       
+       Serial.println("[UNO] Received master request TurnLedON");
+
+       PurpleLED.TurnON();
+       break;  
+     }
+  case 3:
+    {
+       Serial.println("[UNO] Received master request TurnLedOFF");
+
+       PurpleLED.TurnOFF();
+       break;  
     }
   
   default:
