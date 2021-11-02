@@ -1,6 +1,6 @@
 {
     "board": "arduino:avr:uno",
-    "sketch": "spi_slave_test.ino",
+    "sketch": "spi_slave.ino",
     "programmer": "arduino:avrispmkii",
     "port": "COM3"
 }

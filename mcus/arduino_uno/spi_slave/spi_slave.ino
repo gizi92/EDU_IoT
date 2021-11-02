@@ -1,142 +1,43 @@
 #include <SPI.h>
+#include <DataPacket.h>
+#include <Peripheral.h>
 
-class AnalogSensor
-{
-  public:
-    AnalogSensor(const int analogPin)
-    {
-      m_analogPin = analogPin;
-    }
-
-    const int GetAnalogPin() const
-    {
-      return m_analogPin;
-    }
-
-    const int GetLastReadValue() const
-    {
-      return m_value;
-    }
-
-    void Read()
-    {
-      m_value = analogRead(m_analogPin);
-    }
-  private:
-    volatile int m_value;
-    int m_analogPin;
-};
-
+// INPUTS
 AnalogSensor MQ135(0);
 AnalogSensor PhotoResistor(1);
 
-class OutputPeripherals
-{
-  public:
-    OutputPeripherals(const int pin)
-    {
-      m_pin = pin;
-      pinMode(m_pin,OUTPUT);
-      TurnOFF();
-    }
+//OUTPUTS
+DigitalOutput PurpleLED(3);
 
-    const int GetPin() const
-    {
-      return m_pin;
-    }
-
-    void TurnON()
-    {
-      digitalWrite(m_pin, HIGH);
-      m_value = 1;
-      
-    }
-
-    void TurnOFF()
-    {
-      digitalWrite(m_pin, LOW);
-      m_value = 0;
-      
-    }
-    
-    const int GetStatus() const
-    {
-      return m_value;
-    }
-
-  private:
-    volatile int m_value;
-    int m_pin;
-};
-
-OutputPeripherals PurpleLED(3);
-
-enum class EMasterPacketTypes : uint8_t
-{
-  None = 0,
-  ReadAllSensors,
-  TurnLedON,
-  TurnLedOFF
-};
-
-enum class EClientPacketTypes : uint8_t
-{
-  None = 0,
-  PreparePayload,
-  AllSensorData,
-  Error
-};
-
-enum class EErrorType : uint8_t
-{
-  UnknownError = 0,
-  UnknownPacket
-};
-
-typedef struct __attribute__((packed)) SPacketAllSensors
-{
-  EClientPacketTypes type;
-
-  uint8_t error;
-  uint16_t gas1;
-  uint16_t gas2;
-  uint16_t lightSensor;
-
-  SPacketAllSensors()
-  {
-    type = EClientPacketTypes::AllSensorData;
-  }
-};
-
+//SPI
 volatile byte index_received;
 volatile byte index_sent;
 volatile bool spi_receive;
 volatile bool spi_send;
 volatile bool spi_end_transmission;
+SPISettings spi_settings(100000, MSBFIRST, SPI_MODE0);
 
+//DATA PACKETS
 volatile SPacketAllSensors clientDataPacket;
 volatile uint8_t* dataPacketIndex;
-
 volatile EMasterPacketTypes masterPacketType;
 
 
-SPISettings spi_settings(100000, MSBFIRST, SPI_MODE0);
 
 void setup (void)
 {
-  Serial.begin (9600);
-  SPCR |= bit(SPE);         //bekapcsolja az SPIt
-  //SPI.begin();
-  pinMode(MISO, OUTPUT);    //MISOn valaszol
-
-  index_received = 0;
-  index_sent = 0;
-  spi_receive = true;
-  spi_send = false;
-  spi_end_transmission = false;
-
-  dataPacketIndex = (uint8_t*)&clientDataPacket;
-  SPI.attachInterrupt();   //ha jon az SPIn  valami beugrik a fuggvenybe
+    Serial.begin (9600);
+    // SPI Setup
+    SPCR |= bit(SPE);         //bekapcsolja az SPIt
+    pinMode(MISO, OUTPUT);    //MISOn valaszol
+    index_received = 0;
+    index_sent = 0;
+    spi_receive = true;
+    spi_send = false;
+    spi_end_transmission = false;
+    dataPacketIndex = (uint8_t*)&clientDataPacket;
+    SPI.attachInterrupt();   //ha jon az SPIn  valami beugrik a fuggvenybe
+    //
 }
 
 void loop ()
@@ -152,7 +53,7 @@ void loop ()
     dataPacketIndex = (uint8_t*)&clientDataPacket;
     index_sent = 0;
   }
-  delay(500);
+  delay(100);
 }
 
 // SPI interrupt routine
