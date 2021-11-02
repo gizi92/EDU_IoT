@@ -1,5 +1,0 @@
-{
-    "port": "COM4",
-    "board": "arduino:avr:uno",
-    "sketch": "mcus\\arduino_uno\\spi_slave_test\\spi_slave_test.ino"
-}
