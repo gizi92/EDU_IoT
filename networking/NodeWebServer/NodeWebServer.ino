@@ -54,6 +54,22 @@ class NodeWebServer
       m_webServerPtr->onNotFound(handler);
     }
 
+    const String GetHTML() const
+    {
+      String response = "<!DOCTYPE html><html lang=\"en\"><head><title>Bootstrap Example</title><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><link rel=\"stylesheet\" href=\"https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css\"><script src=\"https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js\"></script><script src=\"https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.16.0/umd/popper.min.js\"></script><script src=\"https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js\"></script></head><body><div class=\"jumbotron text-center\"><h1>Amazing Technology Device</h1><p>Changing the world one led at a time</p></div><div class=\"container\"><div class=\"row justify-content-md-center\"><div class=\"col col-md-6\"><h1>Sensor data</h1><table class=\"table\"><thead><tr><th scope=\"col\">Sensor</th><th scope=\"col\">Value</th></tr>";
+      for(const auto& kvp : m_values)
+      {
+        response += "<tr><th scope=\"row\">";
+        response += kvp.first.c_str();
+        response += "</th><td>";
+        response += std::to_string(kvp.second).c_str();
+        response += "</td></tr>";
+      }
+      response += "</thead></table></div></div><div class=\"row justify-content-md-center\"><div class=\"col col-md-6\"><h1>Control</h1><table class=\"table\"><thead><tr><th scope=\"col\">Device</th><th scope=\"col\"></th></tr><tr><th scope=\"row\">LED1</th><td><a href=\"toggleled1\"  type=\"submit\" class=\"btn btn-success\">Toggle</button></td></tr></thead></table></div></div></div></body></html>";
+    
+      return response;
+    }
+
     const String GetValuesJson() const
     {
       String response = "{\"values\":{";
@@ -71,9 +87,14 @@ class NodeWebServer
       return response;
     }
 
-    void Send(int responseCode, const String& response)
+    void SendJson(int responseCode, const String& response)
     {
       m_webServerPtr->send(responseCode, "text/json", response);
+    }
+
+    void SendHTML(int responseCode, const String& response)
+    {
+      m_webServerPtr->send(responseCode, "text/html", response);
     }
 
     void Loop()
@@ -122,22 +143,17 @@ void setup()
   //basicServer.begin();
 
   webServer.AddHandler("/", [&webServer] {
-    webServer.Send(200, webServer.GetValuesJson());
+    webServer.SendHTML(200, webServer.GetHTML());
     Serial.println("[NODE] Sent values");
   });
 
-  webServer.AddHandler("/turnonled", [&webServer] {
-    webServer.Send(200, "{\"response\":\"Led turned on\"}");
-    Serial.println("[NODE] Turning on LED");
-  });
-
-  webServer.AddHandler("/turnoffled", [&webServer] {
-    webServer.Send(200, "{\"response\":\"Led turned off\"}");
-    Serial.println("[NODE] Turning off LED");
+  webServer.AddHandler("/toggleled1", [&webServer] {
+    webServer.SendHTML(200, webServer.GetHTML());
+    Serial.println("[NODE] Toggling LED");
   });
 
   webServer.AddNotFoundHandler([&webServer] {
-    webServer.Send(404, "{\"response\":\"Not found\"}");
+    webServer.SendJson(404, "{\"response\":\"Not found\"}");
     Serial.println("[NODE] 404 not found");
   });
   
