@@ -3,12 +3,26 @@
 
 #include <Arduino.h>
 
+struct SRealTimeClockDateTime
+{
+    uint16_t year;
+    uint8_t month;
+    uint8_t day;
+    uint8_t hour;
+    uint8_t minute;
+    uint8_t second;
+    uint8_t dayOfWeek;
+    uint32_t unixtime;
+};
+
 enum class EMasterPacketTypes : uint8_t
 {
     None = 0,
     ReadAllSensors,
-    TurnLedON,
-    TurnLedOFF
+    TurnLightsON,
+    TurnLightsOFF,
+    TurnAirConditioningON,
+    TurnAirConditioningOFF
 };
 
 enum class EClientPacketTypes : uint8_t
@@ -30,9 +44,11 @@ typedef struct __attribute__((packed)) SPacketAllSensors
     EClientPacketTypes type;
 
     uint8_t error;
-    uint16_t gas1;
-    uint16_t gas2;
-    uint16_t lightSensor;
+    uint8_t roomLightSwitchState; // ON/OFF  1 = OFF, 0 = ON
+    int16_t humidiySensor; // H
+    int16_t temperatureSensor; // Celsius
+    float lightSensor; // Lux
+    SRealTimeClockDateTime rtcDateTime;
 
     SPacketAllSensors()
     {
