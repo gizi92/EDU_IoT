@@ -9,6 +9,11 @@
 - Arduino Uno:
     - Up to date version: `/mcus/arduino_uno/spi_slave`
     - Example code snippets: `/mcus/arduino_uno/examples/`
+    - To run the examples, you need to install the following libraries:
+        - LiquidCrystal I2C by Marco Schwartz: https://github.com/johnrickman/LiquidCrystal_I2C
+        - Arduino-DS3231 by Korneliusz Jarzebski: https://github.com/jarzebski/Arduino-DS3231
+        - SimpleDHT by Winlin: https://github.com/winlinvip/SimpleDHT
+        - Adafruit_TSL2561 by Adafruit: https://github.com/adafruit/Adafruit_TSL2561
 
 - Libraries:
     - path: /mcus/libraries
