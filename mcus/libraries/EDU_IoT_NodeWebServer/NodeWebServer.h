@@ -62,8 +62,8 @@ class NodeWebServer
       }
       //button for refreshing sensor data
       response += "<tr><td><a href=\"refresh_sensors\"  type=\"submit\" class=\"btn btn-success\">Refresh</button></td></tr>";
-      response += "</thead></table></div></div><div class=\"row justify-content-md-center\"><div class=\"col col-md-6\"><h1>Control</h1><table class=\"table\"><thead><tr><th scope=\"col\">Device</th><th scope=\"col\"></th></tr><tr><th scope=\"row\">LED1</th><td><a href=\"toggleled1\"  type=\"submit\" class=\"btn btn-success\">Toggle</button></td></tr></thead></table></div></div></div></body></html>";
-    
+      response += "</thead></table></div></div><div class=\"row justify-content-md-center\"><div class=\"col col-md-6\"><h1>Control</h1><table class=\"table\"><thead><tr><th scope=\"col\">Device</th><th scope=\"col\"></th></tr><tr><th scope=\"row\">Room Lights ON</th><td><a href=\"turnLightsON\"  type=\"submit\" class=\"btn btn-success\">Turn Lights ON</button></td></tr></thead></table></div></div></div></body></html>";
+      response += "</thead></table></div></div><div class=\"row justify-content-md-center\"><div class=\"col col-md-6\"><h1>Control</h1><table class=\"table\"><thead><tr><th scope=\"col\">Device</th><th scope=\"col\"></th></tr><tr><th scope=\"row\">Room Lights OFF</th><td><a href=\"turnLightsOFF\"  type=\"submit\" class=\"btn btn-success\">Turn Lights OFF</button></td></tr></thead></table></div></div></div></body></html>";
       return response;
     }
 

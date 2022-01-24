@@ -105,4 +105,23 @@ class DigitalInput : public Peripheral
     private:
         uint8_t m_state;
 };
+
+class IR_Transmitter: public Peripheral
+{
+    public:
+        IR_Transmitter(const int pin) : Peripheral(pin)
+        {
+            pinMode(Peripheral::GetPin(), OUTPUT);
+        }
+        // pure virtual function providing interface framework.
+        void TurnON()
+        {
+            //TODO implement IR transmission            
+        }
+        void TurnOFF()
+        {
+            //TODO implement IR Transmission
+        }
+};
+
 #endif

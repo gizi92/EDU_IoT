@@ -9,8 +9,8 @@ bool isLedOn = false;
 SPISettings spi_settings(100000, MSBFIRST, SPI_MODE0); 
 //100 kHz legyen a sebesseg, a Node tud 80MHzt de az Arduino csak 16MHzt
 
-const char* ssid = "BEAvatLAK";
-const char* pwd = "nekunkolyanNincs!";
+const char* ssid = "gizitest";
+const char* pwd = "Kuba5859!";
 
 NodeWebServer webServer(80);
 
@@ -58,15 +58,27 @@ void setup()
   
     if(clientDataPacket.error == 0)
     {
-      Serial.println("[NODE] Received sensor data");
-      Serial.print("[NODE] Gas1 : ");
-      Serial.println(clientDataPacket.gas1);
-      Serial.print("[NODE] Gas2 : ");
-      Serial.println(clientDataPacket.gas2);
-      Serial.print("[NODE] Light: ");
-      Serial.println(clientDataPacket.lightSensor);
-      webServer.SetValue("Gas: ", clientDataPacket.gas1);
-      webServer.SetValue("Light: ", clientDataPacket.lightSensor);
+      // SERIAL DEBUG
+      // Serial.println("[NODE] Received sensor data");
+      // Serial.print("[NODE] roomLightSwitchState : ");
+      // Serial.println(clientDataPacket.roomLightSwitchState);
+      // Serial.print("[NODE] humidiySensor : ");
+      // Serial.println(clientDataPacket.humidiySensor);
+      // Serial.print("[NODE] temperatureSensor: ");
+      // Serial.println(clientDataPacket.temperatureSensor);
+      // Serial.print("[NODE] lightSensor: ");
+      // Serial.println(clientDataPacket.lightSensor);
+      webServer.SetValue("System time - year", clientDataPacket.rtcDateTime.year);
+      webServer.SetValue("System time - month", clientDataPacket.rtcDateTime.month);
+      webServer.SetValue("System time - day", clientDataPacket.rtcDateTime.day);
+      webServer.SetValue("System time - hour", clientDataPacket.rtcDateTime.hour);
+      webServer.SetValue("System time - minute", clientDataPacket.rtcDateTime.minute);
+      webServer.SetValue("System time - second", clientDataPacket.rtcDateTime.second);
+      webServer.SetValue("Humidity [H]", clientDataPacket.humidiySensor);
+      webServer.SetValue("Temperature [°C]", clientDataPacket.temperatureSensor);
+      webServer.SetValue("Light [lux]", clientDataPacket.lightSensor);
+      webServer.SetValue("Humidity [H]", clientDataPacket.humidiySensor);
+      webServer.SetValue("Temperature [°C]", clientDataPacket.temperatureSensor);
     }
     else
     {
@@ -75,16 +87,26 @@ void setup()
     }
   });
 
-  webServer.AddHandler("/toggleled1", [&webServer,&isLedOn] {
+  webServer.AddHandler("/turnLightsON", [&webServer] {
     webServer.SendHTML(200, webServer.GetHTML());
     Serial.println("[NODE] Toggling LED");
     SPI.beginTransaction(spi_settings);
     //send master packet to slave
-    EMasterPacketTypes slaveRequest = isLedOn ? EMasterPacketTypes::TurnLedON : EMasterPacketTypes::TurnLedOFF;
+    EMasterPacketTypes slaveRequest = EMasterPacketTypes::TurnLightsON;
     SPI.transfer((uint8_t)slaveRequest);
     delay(1);
     SPI.endTransaction();
-    isLedOn = !isLedOn; 
+  });
+
+  webServer.AddHandler("/turnLightsOFF", [&webServer] {
+    webServer.SendHTML(200, webServer.GetHTML());
+    Serial.println("[NODE] Toggling LED");
+    SPI.beginTransaction(spi_settings);
+    //send master packet to slave
+    EMasterPacketTypes slaveRequest = EMasterPacketTypes::TurnLightsOFF;
+    SPI.transfer((uint8_t)slaveRequest);
+    delay(1);
+    SPI.endTransaction(); 
   });
 
   webServer.AddNotFoundHandler([&webServer] {

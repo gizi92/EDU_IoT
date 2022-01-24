@@ -22,7 +22,9 @@ enum class EMasterPacketTypes : uint8_t
     TurnLightsON,
     TurnLightsOFF,
     TurnAirConditioningON,
-    TurnAirConditioningOFF
+    TurnAirConditioningOFF,
+    TurnStepperMotorON, //TODO, see if you can transmit also new settings, like speed and step size.
+    TurnStepperMotorOFF
 };
 
 enum class EClientPacketTypes : uint8_t
@@ -47,7 +49,7 @@ typedef struct __attribute__((packed)) SPacketAllSensors
     uint8_t roomLightSwitchState; // ON/OFF  1 = OFF, 0 = ON
     int16_t humidiySensor; // H
     int16_t temperatureSensor; // Celsius
-    float lightSensor; // Lux
+    int32_t lightSensor; // Lux
     SRealTimeClockDateTime rtcDateTime;
 
     SPacketAllSensors()

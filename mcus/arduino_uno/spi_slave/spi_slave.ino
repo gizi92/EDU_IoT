@@ -5,63 +5,104 @@
 #include <Adafruit_Sensor.h> //TSL2561 Light sensor
 #include <Adafruit_TSL2561_U.h> //TSL2561 Light sensor
 #include <SimpleDHT.h> // DHT 11 humidity and temperature
+#include <Stepper.h> // Stepper motor
 #include <DataPacket.h>
 #include <Peripheral.h>
+#include <EduIotErrorHandler.h>
 
-// INPUTS
-DS3231 rtc; // I2C ADDRESS 0x68
-LiquidCrystal_I2C lcd(0x27,20,4); // I2C ADDRESS 0x27
-Adafruit_TSL2561_Unified tsl = Adafruit_TSL2561_Unified(TSL2561_ADDR_FLOAT, 12345); // I2C ADDRESS 0x39
-SimpleDHT11 dht11(A3);
+//Define Constants
+//================
+//Pins
+const uint8_t pin_IR_LED = 7;
+const uint8_t pin_Relay = 9; // works only if 12V supplied on Arduino VIN
+const uint8_t pin_ManualSwitch = 14;
+const uint8_t pin_dht11 = 17;
+const uint8_t pin_stepper_In1 = 8;
+const uint8_t pin_stepper_In2 = 6;
+const uint8_t pin_stepper_In3 = 5;
+const uint8_t pin_stepper_In4 = 4;
+
+//I2C Addresses
+const uint8_t i2c_addr_LCD = 0x27;
+const uint8_t i2c_addr_TSL2561 = 0x39;
+const uint8_t i2c_addr_RTC = 0x68; //TODO find out how to use it
+//Settings
+
+// Stepper motor
+// Number of steps per internal motor revolution
+const float stepper_steps_per_rev = 32;
+// Amount of Gear Reduction
+const float stepper_gear_red = 64;
+// Number of steps per geared output rotation
+const float stepper_steps_per_out_rev = stepper_steps_per_rev * stepper_gear_red;
+// Speed - TODO - get this param remotely
+const float stepper_speed = 100;
+
+//================
+// Define Variables
 
 //OUTPUTS
-DigitalOutput LightSwitch(15);
+DigitalOutput relaySwitch(pin_Relay);
+DigitalOutput irLed(pin_IR_LED);
+LiquidCrystal_I2C lcd(i2c_addr_LCD,20,4);
+Stepper stepperMotor(stepper_steps_per_out_rev, pin_stepper_In1, pin_stepper_In2, pin_stepper_In3, pin_stepper_In4);
 
-//SPI
-volatile byte index_received;
-volatile byte index_sent;
-volatile bool spi_receive;
-volatile bool spi_send;
-volatile bool spi_end_transmission;
-SPISettings spi_settings(100000, MSBFIRST, SPI_MODE0);
-
-// Data sampling
-GenericSensor<float> LightSensor(0);
+//INPUTS
+DS3231 rtc; // I2C ADDRESS 0x68
+Adafruit_TSL2561_Unified tsl = Adafruit_TSL2561_Unified(i2c_addr_TSL2561, 10);
+SimpleDHT11 dht11(pin_dht11);
+DigitalInput ManualSwitch(pin_ManualSwitch);
+GenericSensor<int32_t> LightSensor(0);
 GenericSensor<int16_t> HumiditySensor(0);
 GenericSensor<int16_t> TemperatureSensor(0);
-DigitalInput RoomLightSwitch(A0);
 //GenericSensor<SRealTimeClockDateTime> rtc_data();
 
-//DATA PACKETS
-volatile SPacketAllSensors clientDataPacket;
-volatile uint8_t* dataPacketIndex;
-volatile EMasterPacketTypes masterPacketType;
-
-//DEBUG vars
+// Helper Variables
+// Peripherals
 volatile SRealTimeClockDateTime *rtcPtr;
 volatile RTCDateTime rtcDateTime;
 volatile sensors_event_t tsl_event;
 volatile byte temperature;
 volatile byte humidity;
+volatile int stepper_stepsRequired;
+volatile int manualSwitchOldState;
+// SPI
+volatile byte spi_index_received;
+volatile byte spi_index_sent;
+volatile bool spi_receive;
+volatile bool spi_send;
+volatile bool spi_end_transmission;
+SPISettings spi_settings(100000, MSBFIRST, SPI_MODE0);
+// DATA PACKETS
+volatile SPacketAllSensors clientDataPacket;
+volatile uint8_t* dataPacketIndex;
+volatile EMasterPacketTypes masterPacketType;
 
-void init_peripherals(void)
+//Error Handling
+EDU_IOT_ErrorHandler errorHandler;
+
+bool init_peripherals(void)
 {
   Serial.begin(115200);
-  /*
+  /*=========================================
     Initialize Real Time Clock
-  */
-  rtc.begin();
+    ========================================= */
+  if(!rtc.begin())
+  {
+    errorHandler.HandleCode(IOT_ERR_RTC_CONN);
+  }
   // rtc.setDateTime(__DATE__, __TIME__); //Uncomment, if you want to reset the time and date.
-  /*
+  
+  /*=========================================
     Initialize  Light Sensor: Configure the gain and integration time for the TSL2561
-  */
+    ========================================= */
   //use tsl.begin() to default to Wire, 
   //tsl.begin(&Wire2) directs api to use Wire2, etc.
   if(!tsl.begin())
   {
     /* There was a problem detecting the TSL2561 ... check your connections */
-    Serial.print("Ooops, no TSL2561 detected ... Check your wiring or I2C ADDR!");
-    while(1);
+    errorHandler.HandleCode(IOT_ERR_TSL2561_CONN);
+    return false;
   }
   /* You can also manually set the gain or enable auto-gain support */
   // tsl.setGain(TSL2561_GAIN_1X);      /* No gain ... use in bright light to avoid sensor saturation */
@@ -78,12 +119,27 @@ void init_peripherals(void)
   // Serial.print  ("Gain:         "); Serial.println("Auto");
   // Serial.print  ("Timing:       "); Serial.println("101 ms");
   // Serial.println("------------------------------------");
-  
-  /*
+  /*=========================================
     Initialize LCD
-  */
+    ========================================= */
   lcd.init();
   lcd.backlight();
+  
+  // SPI Setup
+  SPCR |= bit(SPE);         //bekapcsolja az SPIt
+  pinMode(MISO, OUTPUT);    //MISOn valaszol
+  spi_index_received = 0;
+  spi_index_sent = 0;
+  spi_receive = true;
+  spi_send = false;
+  spi_end_transmission = false;
+  dataPacketIndex = (uint8_t*)&clientDataPacket;
+
+  //CMD LightSwitch
+  ManualSwitch.ReadState();
+  manualSwitchOldState = ManualSwitch.GetLastReadValue();
+  //TODO Local vs Remote command
+  return true;
 }
 
 // Print all data to the LCD
@@ -117,59 +173,75 @@ void lcd_print_all(void)
 
 void setup (void)
 {
-    init_peripherals();
-    //=====================
-
-    // SPI Setup
-    SPCR |= bit(SPE);         //bekapcsolja az SPIt
-    pinMode(MISO, OUTPUT);    //MISOn valaszol
-    index_received = 0;
-    index_sent = 0;
-    spi_receive = true;
-    spi_send = false;
-    spi_end_transmission = false;
-    dataPacketIndex = (uint8_t*)&clientDataPacket;
-    SPI.attachInterrupt();   //ha jon az SPIn  valami beugrik a fuggvenybe
-    //
+    if(!init_peripherals())
+    {
+      errorHandler.HandleCode(IOT_ERR_SYS_INIT_FAIL);
+    }
+    else
+    {
+      SPI.attachInterrupt();   //ha jon az SPIn  valami beugrik a fuggvenybe
+    }
 }
 
 void loop ()
 {
-  // Get RTC data and set data packet
-  
-  // rtcPtr = (SRealTimeClockDateTime *)&rtc.getDateTime();
-  // rtcDataPacket.rtcDateTime = (SRealTimeClockDateTime)*rtcPtr;
+  /*=========================================
+    Get RTC data
+    ========================================= */
   rtcDateTime = rtc.getDateTime();
 
+  /*=========================================
+    Get Light Sensor data (light is measured in lux)
+    ========================================= */
   tsl.getEvent(&tsl_event);
-  
-  
-  /* Display the results (light is measured in lux) */
   if (tsl_event.light)
   {
-    LightSensor.SetValue(tsl_event.light);
+    LightSensor.SetValue((int32_t)tsl_event.light);
   }
   else
   {
     /* If event.light = 0 lux the sensor is probably saturated
        and no reliable data could be generated! */
-    lcd.println("Sensor overload");
+    errorHandler.HandleCode(IOT_ERR_TSL2561_OVERLOAD);
+    LightSensor.SetValue(0);
   }
-  
+  /*=========================================
+    Get Temperature and Humidity Data
+    ========================================= */
   int err = SimpleDHTErrSuccess;
   if ((err = dht11.read(&temperature, &humidity, NULL)) != SimpleDHTErrSuccess) 
   {
-    lcd.print("Read DHT11 failed, err="); lcd.println(err);
-    return;
+    errorHandler.HandleCode(IOT_ERR_DHT11_GENERAL);
+    HumiditySensor.SetValue(0);
+    TemperatureSensor.SetValue(0);
   }
   else
   {
     HumiditySensor.SetValue((int16_t)humidity);
     TemperatureSensor.SetValue((int16_t)temperature);
   }
-  
-  RoomLightSwitch.ReadState();
+  /*=========================================
+    Read Manual Switch State
+    ========================================= */
+  ManualSwitch.ReadState();
+  // If switch state changed, execute command
+  if (manualSwitchOldState != ManualSwitch.GetLastReadValue())
+  {
+    manualSwitchOldState = ManualSwitch.GetLastReadValue();
+    //Inverse logic
+    if(manualSwitchOldState)
+      relaySwitch.TurnOFF();
+    else
+      relaySwitch.TurnON();
+  }
+    
+  /*=========================================
+    Print Data to LCD
+    ========================================= */
   lcd_print_all();
+  /*=========================================
+    Handle SPI transmission end
+    ========================================= */
   if (spi_end_transmission)
   {
     spi_end_transmission = false;
@@ -177,7 +249,7 @@ void loop ()
     spi_send = false;
 
     dataPacketIndex = (uint8_t*)&clientDataPacket;
-    index_sent = 0;
+    spi_index_sent = 0;
   }
   delay(1000);
 }
@@ -199,7 +271,7 @@ ISR(SPI_STC_vect)
         Serial.println("[UNO] Received master packet ReadAllSensors");
         Serial.println();
         clientDataPacket.error = 0;
-        clientDataPacket.roomLightSwitchState = RoomLightSwitch.GetLastReadValue();
+        clientDataPacket.roomLightSwitchState = ManualSwitch.GetLastReadValue();
         clientDataPacket.humidiySensor = HumiditySensor.GetLastReadValue();
         clientDataPacket.temperatureSensor = TemperatureSensor.GetLastReadValue();
         clientDataPacket.lightSensor = LightSensor.GetLastReadValue();
@@ -218,25 +290,41 @@ ISR(SPI_STC_vect)
       {
         Serial.println("[UNO] Received master packet TurnLightsON");
         Serial.println();
-        LightSwitch.TurnON();
+        relaySwitch.TurnON();
         break;
       }
     case EMasterPacketTypes::TurnLightsOFF:
       {
         Serial.println("[UNO] Received master packet TurnLightsOFF");
         Serial.println();
-        LightSwitch.TurnOFF();
+        relaySwitch.TurnOFF();
+        break;
+      }
+
+    case EMasterPacketTypes::TurnStepperMotorON:
+      {
+        Serial.println("[UNO] Received master packet - TurnStepperMotorON");
+        stepper_stepsRequired = stepper_steps_per_out_rev/2;
+        stepperMotor.setSpeed(stepper_speed);
+        stepperMotor.step(stepper_stepsRequired);
+        break;
+      }
+    case EMasterPacketTypes::TurnStepperMotorOFF:
+      {
+        Serial.println("[UNO] Received master packet - TurnStepperMotorOFF");
+        stepperMotor.setSpeed(0);
+        stepperMotor.step(1);
         break;
       }
     case EMasterPacketTypes::TurnAirConditioningON:
       {
-        Serial.println("[UNO] Received master packet TurnAirConditioningON");
+        Serial.println("[UNO] Received master packet - TurnAirConditioningON");
         // TODO IR LED command
         break;
       }
     case EMasterPacketTypes::TurnAirConditioningOFF:
       {
-        Serial.println("[UNO] Received master packet TurnAirConditioningOFF");
+        Serial.println("[UNO] Received master packet - TurnAirConditioningOFF");
         // TODO IR LED command
         break;
       }
@@ -258,8 +346,8 @@ ISR(SPI_STC_vect)
     if(masterPacketType == EMasterPacketTypes::ReadAllSensors)
     {
       SPDR = *dataPacketIndex++;
-      index_sent++;
-      if(index_sent > sizeof(clientDataPacket))
+      spi_index_sent++;
+      if(spi_index_sent > sizeof(clientDataPacket))
         spi_end_transmission = true;
     }
     else
