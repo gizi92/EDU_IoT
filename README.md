@@ -22,4 +22,6 @@
         - Other OSes: check where the user libraries for arduino are stored and copy the content of `/mcus/libraries/` there (Imma captain obvious). Alternatively you can create zip archives from the libraries (for ex `EDU_IoT_DataPacket.zip`) and import them into
         the Arduino IDE by using the `Sketch->Include Library->Add .ZIP Library...` function.
 
-If you want to use VSCode for Arduino: https://www.youtube.com/watch?v=FnEvJXpxxNM&t=300s
+# Tools
+- If you want to use VSCode for Arduino: https://www.youtube.com/watch?v=FnEvJXpxxNM&t=300s
+- PlatformIO is a cool VSCode plugin for embedded programming: https://randomnerdtutorials.com/vs-code-platformio-ide-esp32-esp8266-arduino/
