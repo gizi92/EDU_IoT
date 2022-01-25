@@ -1,0 +1,12 @@
+{
+	"folders": [
+		{
+			"path": "D:\\dev\\git\\EDU_IoT\\mcus\\nodemcu\\spi_master_platformio"
+		},
+		{
+			"name": "220125-020519-nodemcuv2",
+			"path": ".."
+		}
+	],
+	"settings": {}
+}
