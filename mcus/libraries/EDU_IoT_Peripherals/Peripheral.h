@@ -67,14 +67,14 @@ class DigitalOutput : public Peripheral
 
         void TurnON()
         {
-            digitalWrite(Peripheral::GetPin(), LOW);
-            m_state = 0;
+            digitalWrite(Peripheral::GetPin(), HIGH);
+            m_state = 1;
         }
 
         void TurnOFF()
         {
-            digitalWrite(Peripheral::GetPin(), HIGH);
-            m_state = 1;
+            digitalWrite(Peripheral::GetPin(), LOW);
+            m_state = 0;
         }
 
         const int GetState() const
@@ -116,7 +116,7 @@ class IR_Transmitter: public Peripheral
         // pure virtual function providing interface framework.
         void TurnON()
         {
-            //TODO implement IR transmission            
+            //TODO implement IR transmission
         }
         void TurnOFF()
         {

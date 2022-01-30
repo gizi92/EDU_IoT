@@ -21,10 +21,9 @@ enum class EMasterPacketTypes : uint8_t
     ReadAllSensors,
     TurnLightsON,
     TurnLightsOFF,
-    TurnAirConditioningON,
-    TurnAirConditioningOFF,
-    TurnStepperMotorON, //TODO, see if you can transmit also new settings, like speed and step size.
-    TurnStepperMotorOFF
+    ToggleAirConditioning,
+    TurnStepperMotorCW, //TODO, see if you can transmit also new settings, like speed and step size.
+    TurnStepperMotorCCW
 };
 
 enum class EClientPacketTypes : uint8_t

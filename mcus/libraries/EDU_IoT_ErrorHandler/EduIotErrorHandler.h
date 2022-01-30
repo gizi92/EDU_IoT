@@ -23,7 +23,7 @@ class EDU_IOT_ErrorHandler
       case IOT_ERR_TSL2561_CONN:
         Serial.println("IOT_ERROR ("); Serial.print(code); Serial.print("): No TSL2561 detected! Check your wiring or I2C ADDR!");
         break;
-      
+
       case IOT_ERR_TSL2561_OVERLOAD:
         Serial.println("IOT_ERROR ("); Serial.print(code); Serial.print("): TSL2561 Sensor overload!");
         break;

@@ -259,7 +259,6 @@ ISR(SPI_STC_vect)
 {
   //receive and handle master request
   uint8_t receivedByte = (uint8_t)SPDR;
-  
   if(spi_receive)
   {
     masterPacketType = (EMasterPacketTypes)receivedByte;
@@ -271,7 +270,7 @@ ISR(SPI_STC_vect)
         Serial.println("[UNO] Received master packet ReadAllSensors");
         Serial.println();
         clientDataPacket.error = 0;
-        clientDataPacket.roomLightSwitchState = ManualSwitch.GetLastReadValue();
+        clientDataPacket.roomLightSwitchState = relaySwitch.GetState();
         clientDataPacket.humidiySensor = HumiditySensor.GetLastReadValue();
         clientDataPacket.temperatureSensor = TemperatureSensor.GetLastReadValue();
         clientDataPacket.lightSensor = LightSensor.GetLastReadValue();

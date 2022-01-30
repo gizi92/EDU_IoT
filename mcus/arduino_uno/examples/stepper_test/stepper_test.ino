@@ -38,12 +38,15 @@ void setup()
 
 void loop()
 {
-    // Slow - 4-step CW sequence to observe lights on driver board
-    Serial.println(STEPS_PER_OUT_REV);
-    Serial.println("low - 4-step CW sequence to observe lights on driver board");
-    steppermotor.setSpeed(1);
-    StepsRequired = STEPS_PER_OUT_REV/2;
-    steppermotor.step(StepsRequired);
+    // // Slow - 4-step CW sequence to observe lights on driver board
+    // Serial.println(STEPS_PER_OUT_REV);
+    // Serial.println("low - 4-step CW sequence to observe lights on driver board");
+    // steppermotor.setSpeed(1);
+    // StepsRequired = STEPS_PER_OUT_REV/2;
+    // steppermotor.step(StepsRequired);
+    // delay(2000);
+    // Stepper STOP
+    Serial.println("Stepper STOP");
     delay(2000);
 
     // Rotate CW 1.2 turn slowly

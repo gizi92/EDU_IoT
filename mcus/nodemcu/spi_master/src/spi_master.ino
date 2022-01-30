@@ -6,6 +6,7 @@
 #include <ESPAsyncWebServer.h>
 #include <SPI.h>
 #include <DataPacket.h>
+#include <Arduino_JSON.h>
 
 volatile SPacketAllSensors clientDataPacket;
 SPISettings spi_settings(100000, MSBFIRST, SPI_MODE0);
@@ -20,31 +21,140 @@ String ledState;
 // Create AsyncWebServer object on port 80
 AsyncWebServer server(80);
 
-// Replaces placeholder with LED state value
-void processor_TurnLightsON(){
-  Serial.println("[NODE] LED ON");
-  SPI.beginTransaction(spi_settings);
-  //send master packet to slave
-  EMasterPacketTypes slaveRequest = EMasterPacketTypes::TurnLightsON;
-  SPI.transfer((uint8_t)slaveRequest);
-  delay(1);
-  SPI.endTransaction();
+// Create an Event Source on /events
+AsyncEventSource events("/events");
+
+// Timer variables
+unsigned long lastTime = 0;
+unsigned long timerDelay = 5000;
+
+void init_clientDataPacket()
+{
+  clientDataPacket.error = 0;
+  clientDataPacket.humidiySensor = 0;
+  clientDataPacket.lightSensor = 0;
+  clientDataPacket.roomLightSwitchState = 0;
+  clientDataPacket.temperatureSensor = 0;
+  clientDataPacket.rtcDateTime.year = 0;
+  clientDataPacket.rtcDateTime.month = 0;
+  clientDataPacket.rtcDateTime.day = 0;
+  clientDataPacket.rtcDateTime.dayOfWeek = 0;
+  clientDataPacket.rtcDateTime.unixtime = 0;
+  clientDataPacket.rtcDateTime.hour = 0;
+  clientDataPacket.rtcDateTime.minute = 0;
+  clientDataPacket.rtcDateTime.second = 0;
 }
 
-void processor_TurnLightsOFF(){
-  Serial.println("[NODE] LED OFF");
+String rtc_datetime_to_str()
+{
+  String result = String();
+  result.concat(clientDataPacket.rtcDateTime.year);
+  result.concat("-");
+  result.concat(clientDataPacket.rtcDateTime.month);
+  result.concat("-");
+  result.concat(clientDataPacket.rtcDateTime.day);
+  result.concat("           ");
+  result.concat(clientDataPacket.rtcDateTime.hour);
+  result.concat(":");
+  result.concat(clientDataPacket.rtcDateTime.minute);
+  result.concat(":");
+  result.concat(clientDataPacket.rtcDateTime.second);
+  //result.concat("1Z");
+  return result;
+}
+
+void send_spi_cmd(const EMasterPacketTypes cmd)
+{
+  if(cmd == EMasterPacketTypes::None)
+  {
+    Serial.println("[NODE] Invalid SPI command!");
+    return;
+  }
+
   SPI.beginTransaction(spi_settings);
-  //send master packet to slave
-  EMasterPacketTypes slaveRequest = EMasterPacketTypes::TurnLightsOFF;
-  SPI.transfer((uint8_t)slaveRequest);
-  delay(1);
+
+  if(cmd == EMasterPacketTypes::ReadAllSensors)
+  {
+    //init_clientDataPacket();
+    SPI.transfer((uint8_t)cmd);
+    delay(1);
+    uint8_t* dataPacketIndex = (uint8_t*)&clientDataPacket;
+    for( int i=0; i<sizeof(clientDataPacket);  i++)
+    {
+      *dataPacketIndex = SPI.transfer('.');
+      dataPacketIndex++;
+      delay(1);
+    }
+    //DEBUG
+    // Serial.println("[NODE] packet received:");
+    // Serial.println(clientDataPacket.temperatureSensor);
+    // Serial.println(clientDataPacket.humidiySensor);
+    // Serial.println(clientDataPacket.lightSensor);
+    // Serial.println("[NODE] packet end...");
+  }
+  else
+  {
+    SPI.transfer((uint8_t)cmd);
+    delay(1);
+  }
   SPI.endTransaction();
+  return;
+}
+
+// Replaces placeholder with LED state value
+void spi_cmd_TurnLightsON(){
+  Serial.println("[NODE] send SPI Command: Turn Lights ON");
+  send_spi_cmd(EMasterPacketTypes::TurnLightsON);
+}
+
+void spi_cmd_TurnLightsOFF(){
+  Serial.println("[NODE] send SPI Command: Turn Lights OFF");
+  send_spi_cmd(EMasterPacketTypes::TurnLightsOFF);
+}
+
+void spi_cmd_TurnStepperMotorCW()
+{
+  Serial.println("[NODE] send SPI Command: Turn Stepper Motor CW");
+  send_spi_cmd(EMasterPacketTypes::TurnStepperMotorCW);
+}
+
+void spi_cmd_TurnStepperMotorCCW()
+{
+  Serial.println("[NODE] send SPI Command: Turn Stepper Motor CCW");
+  send_spi_cmd(EMasterPacketTypes::TurnStepperMotorCCW);
+}
+
+void spi_cmd_ToggleAirConditioning()
+{
+  Serial.println("[NODE] send SPI Command: Toggle Airconditioning");
+  send_spi_cmd(EMasterPacketTypes::ToggleAirConditioning);
+}
+
+String spi_cmd_ReadAllSensors()
+{
+  Serial.println("[NODE] update sensor data on webpage");
+  if(clientDataPacket.error)
+  {
+    return "";
+  }
+  // Json Variable to hold data sent from the Arduino
+  JSONVar packet_from_client;
+  packet_from_client["temperature"] = String(clientDataPacket.temperatureSensor);
+  packet_from_client["humidity"] = String(clientDataPacket.humidiySensor);
+  packet_from_client["luminosity"] = String(clientDataPacket.lightSensor);
+  packet_from_client["manualswitch"] = (clientDataPacket.roomLightSwitchState == 1);
+  packet_from_client["rtc_datetime"] = rtc_datetime_to_str();
+  String jsonString = JSON.stringify(packet_from_client);
+  return jsonString;
+}
+
+void notFound(AsyncWebServerRequest *request) {
+    request->send(404, "text/plain", "Not found");
 }
 
 void setup(){
 
   Serial.begin(115200);
-  pinMode(ledPin, OUTPUT);
 
   // Initialize LittleFS
   if(!LittleFS.begin()){
@@ -67,24 +177,68 @@ void setup(){
     request->send(LittleFS, "/index.html");
   });
 
+  // Request for the latest sensor readings
+  server.on("/readings", HTTP_GET, [](AsyncWebServerRequest *request){
+    String json = spi_cmd_ReadAllSensors();
+    if(!json.isEmpty())
+      request->send(200, "application/json", json);
+  });
+
+  events.onConnect([](AsyncEventSourceClient *client){
+    if(client->lastId()){
+      Serial.printf("Client reconnected! Last message ID that it got is: %u\n", client->lastId());
+    }
+  });
+  server.addHandler(&events);
+
   // Route to load style.css file
   server.on("/style.css", HTTP_GET, [](AsyncWebServerRequest *request){
     request->send(LittleFS, "/style.css", "text/css");
   });
 
-  // Route to set GPIO to HIGH
-  server.on("/relayOn", HTTP_GET, [](AsyncWebServerRequest *request){
-    processor_TurnLightsOFF();
+  // Route to load script.js file
+  server.on("/script.js", HTTP_GET, [](AsyncWebServerRequest *request){
+    request->send(LittleFS, "/script.js", "text/js");
   });
 
-  // Route to set GPIO to LOW
-  server.on("/relayOff", HTTP_GET, [](AsyncWebServerRequest *request){
-    processor_TurnLightsON();
+  // Route to set Relay to HIGH
+  server.on("/relayOn", HTTP_GET, [](AsyncWebServerRequest *request){
+    spi_cmd_TurnLightsON();
+    request->send(LittleFS, "/index.html");
   });
+
+  // Route to set Relay to LOW
+  server.on("/relayOff", HTTP_GET, [](AsyncWebServerRequest *request){
+    spi_cmd_TurnLightsOFF();
+    request->send(LittleFS, "/index.html");
+  });
+
+  server.on("/motorCw", HTTP_GET, [](AsyncWebServerRequest *request){
+    spi_cmd_TurnStepperMotorCW();
+    request->send(LittleFS, "/index.html");
+  });
+
+  server.on("/motorCcw", HTTP_GET, [](AsyncWebServerRequest *request){
+    spi_cmd_TurnStepperMotorCCW();
+    request->send(LittleFS, "/index.html");
+  });
+
+  server.on("/airC", HTTP_GET, [](AsyncWebServerRequest *request){
+    spi_cmd_ToggleAirConditioning();
+    request->send(LittleFS, "/index.html");
+  });
+  server.onNotFound(notFound);
 }
 
 void loop(){
   SPI.begin();
   // Start server
   server.begin();
+  if ((millis() - lastTime) > timerDelay) {
+    send_spi_cmd(EMasterPacketTypes::ReadAllSensors);
+    // Send Events to the client with the Sensor Readings Every 5 seconds
+    events.send("ping",NULL,millis());
+    events.send(spi_cmd_ReadAllSensors().c_str(),"new_readings" ,millis());
+    lastTime = millis();
+  }
 }

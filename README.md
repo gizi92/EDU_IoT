@@ -5,6 +5,12 @@
 - NodeMCU:
     - Up to date version: `/mcus/nodemcu/spi_master`
     - Example code snippets: `/mcus/nodemcu/examples/`
+    - To run the examples, you need to install the following libraries:
+        - LittleFS by lorol: https://github.com/lorol/LITTLEFS
+        - ESP8266WiFi: https://github.com/esp8266/Arduino/tree/master/libraries/ESP8266WiFi
+        - ESPAsyncTCP by me-no-dev: https://github.com/me-no-dev/ESPAsyncTCP
+        - ESPAsyncWebServer by me-no-dev: https://github.com/me-no-dev/ESPAsyncWebServer
+        - Arduino_JSON by arduino-libraries: https://github.com/arduino-libraries/Arduino_JSON
 
 - Arduino Uno:
     - Up to date version: `/mcus/arduino_uno/spi_slave`
@@ -14,7 +20,7 @@
         - Arduino-DS3231 by Korneliusz Jarzebski: https://github.com/jarzebski/Arduino-DS3231
         - SimpleDHT by Winlin: https://github.com/winlinvip/SimpleDHT
         - Adafruit_TSL2561 by Adafruit: https://github.com/adafruit/Adafruit_TSL2561
-
+        - Arduino-IRRemote by Arduino: https://github.com/Arduino-IRremote/Arduino-IRremote
 - Libraries:
     - path: /mcus/libraries
     - Usage instructions:
