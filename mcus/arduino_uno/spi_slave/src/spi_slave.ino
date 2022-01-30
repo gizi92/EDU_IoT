@@ -38,6 +38,9 @@ const float stepper_steps_per_out_rev = stepper_steps_per_rev * stepper_gear_red
 // Speed - TODO - get this param remotely
 const float stepper_speed = 100;
 
+volatile bool stepper_spi_cmd_cw;
+volatile bool stepper_spi_cmd_ccw;
+
 //================
 // Define Variables
 
@@ -45,7 +48,7 @@ const float stepper_speed = 100;
 DigitalOutput relaySwitch(pin_Relay);
 DigitalOutput irLed(pin_IR_LED);
 LiquidCrystal_I2C lcd(i2c_addr_LCD,20,4);
-Stepper stepperMotor(stepper_steps_per_out_rev, pin_stepper_In1, pin_stepper_In2, pin_stepper_In3, pin_stepper_In4);
+Stepper stepperMotor(stepper_steps_per_rev, pin_stepper_In1, pin_stepper_In2, pin_stepper_In3, pin_stepper_In4);
 
 //INPUTS
 DS3231 rtc; // I2C ADDRESS 0x68
@@ -55,7 +58,6 @@ DigitalInput ManualSwitch(pin_ManualSwitch);
 GenericSensor<int32_t> LightSensor(0);
 GenericSensor<int16_t> HumiditySensor(0);
 GenericSensor<int16_t> TemperatureSensor(0);
-//GenericSensor<SRealTimeClockDateTime> rtc_data();
 
 // Helper Variables
 // Peripherals
@@ -92,11 +94,11 @@ bool init_peripherals(void)
     errorHandler.HandleCode(IOT_ERR_RTC_CONN);
   }
   // rtc.setDateTime(__DATE__, __TIME__); //Uncomment, if you want to reset the time and date.
-  
+
   /*=========================================
     Initialize  Light Sensor: Configure the gain and integration time for the TSL2561
     ========================================= */
-  //use tsl.begin() to default to Wire, 
+  //use tsl.begin() to default to Wire,
   //tsl.begin(&Wire2) directs api to use Wire2, etc.
   if(!tsl.begin())
   {
@@ -108,13 +110,13 @@ bool init_peripherals(void)
   // tsl.setGain(TSL2561_GAIN_1X);      /* No gain ... use in bright light to avoid sensor saturation */
   // tsl.setGain(TSL2561_GAIN_16X);     /* 16x gain ... use in low light to boost sensitivity */
   tsl.enableAutoRange(true);            /* Auto-gain ... switches automatically between 1x and 16x */
-  
+
   /* Changing the integration time gives you better sensor resolution (402ms = 16-bit data) */
   // tsl.setIntegrationTime(TSL2561_INTEGRATIONTIME_13MS);      /* fast but low resolution */
   tsl.setIntegrationTime(TSL2561_INTEGRATIONTIME_101MS);  /* medium resolution and speed   */
   // tsl.setIntegrationTime(TSL2561_INTEGRATIONTIME_402MS);  /* 16-bit data but slowest conversions */
 
-  /* Update these values depending on what you've set above! */  
+  /* Update these values depending on what you've set above! */
   // Serial.println("------------------------------------");
   // Serial.print  ("Gain:         "); Serial.println("Auto");
   // Serial.print  ("Timing:       "); Serial.println("101 ms");
@@ -124,7 +126,7 @@ bool init_peripherals(void)
     ========================================= */
   lcd.init();
   lcd.backlight();
-  
+
   // SPI Setup
   SPCR |= bit(SPE);         //bekapcsolja az SPIt
   pinMode(MISO, OUTPUT);    //MISOn valaszol
@@ -138,7 +140,9 @@ bool init_peripherals(void)
   //CMD LightSwitch
   ManualSwitch.ReadState();
   manualSwitchOldState = ManualSwitch.GetLastReadValue();
-  //TODO Local vs Remote command
+  //CMD Stepper
+  stepper_spi_cmd_cw = false;
+  stepper_spi_cmd_ccw = false;
   return true;
 }
 
@@ -171,8 +175,10 @@ void lcd_print_all(void)
 }
 
 
+
 void setup (void)
 {
+  Serial.begin(115200);
     if(!init_peripherals())
     {
       errorHandler.HandleCode(IOT_ERR_SYS_INIT_FAIL);
@@ -183,8 +189,28 @@ void setup (void)
     }
 }
 
+
 void loop ()
 {
+  if(stepper_spi_cmd_cw)
+  {
+    SPI.detachInterrupt();
+    stepper_stepsRequired = stepper_steps_per_out_rev/2;
+    stepperMotor.setSpeed(stepper_speed);
+    stepperMotor.step(stepper_stepsRequired);
+    stepper_spi_cmd_cw = false;
+    SPI.attachInterrupt();
+  }
+  else if (stepper_spi_cmd_ccw)
+  {
+    SPI.detachInterrupt();
+    stepper_stepsRequired = - stepper_steps_per_out_rev/2;
+    stepperMotor.setSpeed(stepper_speed);
+    stepperMotor.step(stepper_stepsRequired);
+    stepper_spi_cmd_ccw = false;
+    SPI.attachInterrupt();
+  }
+
   /*=========================================
     Get RTC data
     ========================================= */
@@ -209,7 +235,7 @@ void loop ()
     Get Temperature and Humidity Data
     ========================================= */
   int err = SimpleDHTErrSuccess;
-  if ((err = dht11.read(&temperature, &humidity, NULL)) != SimpleDHTErrSuccess) 
+  if ((err = dht11.read(&temperature, &humidity, NULL)) != SimpleDHTErrSuccess)
   {
     errorHandler.HandleCode(IOT_ERR_DHT11_GENERAL);
     HumiditySensor.SetValue(0);
@@ -228,13 +254,14 @@ void loop ()
   if (manualSwitchOldState != ManualSwitch.GetLastReadValue())
   {
     manualSwitchOldState = ManualSwitch.GetLastReadValue();
-    //Inverse logic
     if(manualSwitchOldState)
       relaySwitch.TurnOFF();
     else
+    {
       relaySwitch.TurnON();
+    }
   }
-    
+
   /*=========================================
     Print Data to LCD
     ========================================= */
@@ -251,6 +278,7 @@ void loop ()
     dataPacketIndex = (uint8_t*)&clientDataPacket;
     spi_index_sent = 0;
   }
+
   delay(1000);
 }
 
@@ -287,43 +315,34 @@ ISR(SPI_STC_vect)
       }
     case EMasterPacketTypes::TurnLightsON:
       {
-        Serial.println("[UNO] Received master packet TurnLightsON");
+        Serial.println("[UNO] Received master packet - TurnLightsON");
         Serial.println();
         relaySwitch.TurnON();
         break;
       }
     case EMasterPacketTypes::TurnLightsOFF:
       {
-        Serial.println("[UNO] Received master packet TurnLightsOFF");
+        Serial.println("[UNO] Received master packet - TurnLightsOFF");
         Serial.println();
         relaySwitch.TurnOFF();
         break;
       }
 
-    case EMasterPacketTypes::TurnStepperMotorON:
+    case EMasterPacketTypes::TurnStepperMotorCW:
       {
-        Serial.println("[UNO] Received master packet - TurnStepperMotorON");
-        stepper_stepsRequired = stepper_steps_per_out_rev/2;
-        stepperMotor.setSpeed(stepper_speed);
-        stepperMotor.step(stepper_stepsRequired);
+        Serial.println("[UNO] Received master packet - TurnStepperMotorCW");
+        stepper_spi_cmd_cw = true;
         break;
       }
-    case EMasterPacketTypes::TurnStepperMotorOFF:
+    case EMasterPacketTypes::TurnStepperMotorCCW:
       {
-        Serial.println("[UNO] Received master packet - TurnStepperMotorOFF");
-        stepperMotor.setSpeed(0);
-        stepperMotor.step(1);
+        Serial.println("[UNO] Received master packet - TurnStepperMotorCCW");
+        stepper_spi_cmd_ccw = true;
         break;
       }
-    case EMasterPacketTypes::TurnAirConditioningON:
+    case EMasterPacketTypes::ToggleAirConditioning:
       {
-        Serial.println("[UNO] Received master packet - TurnAirConditioningON");
-        // TODO IR LED command
-        break;
-      }
-    case EMasterPacketTypes::TurnAirConditioningOFF:
-      {
-        Serial.println("[UNO] Received master packet - TurnAirConditioningOFF");
+        Serial.println("[UNO] Received master packet - ToggleAirConditioning");
         // TODO IR LED command
         break;
       }
