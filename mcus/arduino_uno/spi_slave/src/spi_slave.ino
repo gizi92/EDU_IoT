@@ -6,14 +6,24 @@
 #include <Adafruit_TSL2561_U.h> //TSL2561 Light sensor
 #include <SimpleDHT.h> // DHT 11 humidity and temperature
 #include <Stepper.h> // Stepper motor
+#include <IRremote.hpp> // IR remote
+#include "ac_LG.hpp" // IR remote
 #include <DataPacket.h>
 #include <Peripheral.h>
 #include <EduIotErrorHandler.h>
 
+//For LG Air Conditioning IR remote
+#define IR_SEND_PIN               7
+#define SIZE_OF_RECEIVE_BUFFER   10
+char sRequestString[SIZE_OF_RECEIVE_BUFFER];
+Aircondition_LG MyLG_Aircondition;
+volatile bool isAirConditioningON;
+//====================================
+
 //Define Constants
 //================
 //Pins
-const uint8_t pin_IR_LED = 7;
+// const uint8_t pin_IR_LED = 7;
 const uint8_t pin_Relay = 9; // works only if 12V supplied on Arduino VIN
 const uint8_t pin_ManualSwitch = 14;
 const uint8_t pin_dht11 = 17;
@@ -46,7 +56,6 @@ volatile bool stepper_spi_cmd_ccw;
 
 //OUTPUTS
 DigitalOutput relaySwitch(pin_Relay);
-DigitalOutput irLed(pin_IR_LED);
 LiquidCrystal_I2C lcd(i2c_addr_LCD,20,4);
 Stepper stepperMotor(stepper_steps_per_rev, pin_stepper_In1, pin_stepper_In2, pin_stepper_In3, pin_stepper_In4);
 
@@ -143,6 +152,19 @@ bool init_peripherals(void)
   //CMD Stepper
   stepper_spi_cmd_cw = false;
   stepper_spi_cmd_ccw = false;
+
+  //IR remote to LG Air  Conditioning
+  Serial.println(F("START " __FILE__ " from " __DATE__ "\r\nUsing library version " VERSION_IRREMOTE));
+#if defined(IR_SEND_PIN)
+    IrSender.begin(IR_SEND_PIN); // Start with IR_SEND_PIN as send pin and enable feedback LED at default feedback LED pin
+#else
+    IrSender.begin(IR_SEND_PIN, ENABLE_LED_FEEDBACK); // Specify send pin and enable feedback LED at default feedback LED pin
+#endif
+  Serial.print(F("Ready to send IR signals at pin "));
+  Serial.println(IR_SEND_PIN);
+  Serial.println();
+  MyLG_Aircondition.setType(LG_IS_WALL_TYPE);
+  isAirConditioningON = false;
   return true;
 }
 
@@ -343,7 +365,15 @@ ISR(SPI_STC_vect)
     case EMasterPacketTypes::ToggleAirConditioning:
       {
         Serial.println("[UNO] Received master packet - ToggleAirConditioning");
-        // TODO IR LED command
+        if(isAirConditioningON)
+        {
+          MyLG_Aircondition.sendIRCommand(LG_COMMAND_ON);
+          isAirConditioningON = true;
+        }
+        {
+          MyLG_Aircondition.sendIRCommand(LG_COMMAND_OFF);
+          isAirConditioningON = false;
+        }
         break;
       }
     default:
