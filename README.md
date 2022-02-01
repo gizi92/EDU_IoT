@@ -11,6 +11,7 @@
         - ESPAsyncTCP by me-no-dev: https://github.com/me-no-dev/ESPAsyncTCP
         - ESPAsyncWebServer by me-no-dev: https://github.com/me-no-dev/ESPAsyncWebServer
         - Arduino_JSON by arduino-libraries: https://github.com/arduino-libraries/Arduino_JSON
+        - PubSubClient by knolleary: https://github.com/knolleary/pubsubclient
 
 - Arduino Uno:
     - Up to date version: `/mcus/arduino_uno/spi_slave`
@@ -31,3 +32,4 @@
 # Tools
 - If you want to use VSCode for Arduino: https://www.youtube.com/watch?v=FnEvJXpxxNM&t=300s
 - PlatformIO is a cool VSCode plugin for embedded programming: https://randomnerdtutorials.com/vs-code-platformio-ide-esp32-esp8266-arduino/
+- vagrant and virtualbox for mqtt server.
