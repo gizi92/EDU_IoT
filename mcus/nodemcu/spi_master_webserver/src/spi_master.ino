@@ -12,8 +12,8 @@ volatile SPacketAllSensors clientDataPacket;
 SPISettings spi_settings(100000, MSBFIRST, SPI_MODE0);
 
 // Replace with your network credentials
-const char* ssid = "gizitest"; //Replace with your own SSID
-const char* password = "Kuba5859!"; //Replace with your own password
+const char* ssid = "wifi_ssid"; //Replace with your own SSID
+const char* password = "passwd"; //Replace with your own password
 
 const int ledPin = 2;
 String ledState;

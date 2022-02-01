@@ -13,10 +13,10 @@ volatile SPacketAllSensors clientDataPacket;
 SPISettings spi_settings(100000, MSBFIRST, SPI_MODE0);
 
 // Replace with your network credentials
-const char* ssid = "gizitest"; //Replace with your own SSID
-const char* password = "Kuba5859!"; //Replace with your own password
+const char* ssid = "wifi_ssid"; //Replace with your own SSID
+const char* password = "passwd"; //Replace with your own password
 // MQTT
-const char* mqtt_server = "192.168.0.136";
+const char* mqtt_server = "server_hostname";
 WiFiClient espClient;
 PubSubClient mqtt_client(espClient);
 
